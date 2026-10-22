@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="lv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Paplašināts CNC soļu kalkulators ar DIP tabulām</title>
+<style>
+*{box-sizing:border-box}body{margin:0;padding:18px;background:#eef2f7;color:#172033;font:15px Arial,sans-serif}
+main{max-width:1100px;margin:auto;background:white;border-radius:14px;overflow:hidden;box-shadow:0 6px 25px #0001}
+header{background:#1e293b;color:white;padding:22px}h1{margin:0 0 6px;font-size:25px}header p{margin:0;color:#dbeafe;line-height:1.45}
+.content{padding:20px}h2{font-size:18px;border-bottom:1px solid #dbe2ea;padding-bottom:9px;margin:0 0 14px}.section{margin-bottom:26px}
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.axes{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.axis,.panel{border:1px solid #dbe2ea;border-radius:10px;padding:12px;background:#fbfdff;min-width:0}
+label{display:block;font-size:13px;color:#475569;margin:9px 0 5px}input,select{width:100%;padding:10px;border:1px solid #cbd5e1;border-radius:7px;background:#f8fafc;font-size:14px;color:#111827}
+button{padding:10px 12px;border:1px solid #cbd5e1;border-radius:7px;background:#fff;cursor:pointer;font-size:14px}button.primary{background:#1d4ed8;color:#fff;border-color:#1d4ed8}
+.full{grid-column:1/-1}.hint{font-size:12px;color:#64748b;line-height:1.45;margin-top:5px}.hidden{display:none!important}
+.result{background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:16px}.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:9px}
+.metric,.cmd{background:white;border:1px solid #dbe2ea;border-radius:8px;padding:12px;min-width:0}.metric span{font-size:12px;color:#64748b}.metric strong{display:block;font-size:22px;color:#1d4ed8;margin-top:5px;overflow-wrap:anywhere}
+.commands{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:12px}.cmdtop{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}.cmd code{white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;line-height:1.6}
+.warning{background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;border-radius:8px;padding:12px;font-size:13px;line-height:1.5}.note{font-size:13px;line-height:1.5;color:#475569}
+table{border-collapse:collapse;width:100%;font-size:13px;margin-top:10px}th,td{border:1px solid #dbe2ea;padding:9px;text-align:center}th{background:#f1f5f9;font-weight:700}td.left,th.left{text-align:left}.on{font-weight:bold;color:#166534}.off{font-weight:bold;color:#9f1239}.selected-row{background:#dbeafe}
+.table-wrap{overflow-x:auto}.source{font-size:12px;color:#475569;margin-top:12px;line-height:1.5}.source a{color:#1d4ed8}
+@media(max-width:800px){.axes{grid-template-columns:repeat(2,minmax(0,1fr))}.grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:520px){body{padding:8px}.content{padding:13px}.grid,.commands{grid-template-columns:1fr}.metrics{grid-template-columns:repeat(2,1fr)}h1{font-size:21px}}
+</style>
+</head>
+<body>
+<main>
+<header><h1>Paplašināts CNC soļu kalkulators</h1><p>Vairākas asis · motori · mehāniskā piedziņa · draiveru mikrosoļu un DIP slēdžu tabulas</p></header>
+<div class="content">
+<section class="section">
+<h2>1. Kopējie iestatījumi</h2>
+<div class="grid">
+<div><label for="controller">Vadības sistēma</label><select id="controller"><option value="grbl">GRBL</option><option value="marlin">Marlin</option><option value="manual">Tikai aprēķins</option></select></div>
+<div><label for="units">Rezultāta mērvienība</label><select id="units"><option value="mm">mm — soļi/mm</option><option value="inch">collas — soļi/collā</option></select></div>
+<div><label for="driver">Draivera profils</label><select id="driver"><option value="custom">Manuāli / cits</option><option value="a4988">A4988</option><option value="drv8825">DRV8825</option><option value="tmc2209">TMC2209</option><option value="tb6600_6">TB6600 tipa — 6 DIP slēdži (piemēra tabula)</option><option value="tb6600_3">TB6600 tipa — 3 mikrosoļu slēdži (piemēra tabula)</option></select></div>
+<div><label for="microDefault">Noklusētie mikrosoļi</label><select id="microDefault"><option>1</option><option>2</option><option>4</option><option>8</option><option selected>16</option><option>32</option><option>64</option><option>128</option><option>256</option></select></div>
+<div><label for="motorDefault">Noklusētais motors</label><select id="motorDefault"><option value="200">1,8° — 200 soļi/apgr.</option><option value="400">0,9° — 400 soļi/apgr.</option><option value="custom">Manuāli katrai asij</option></select></div>
+<div><label for="customDefault">Cits pilno soļu skaits/apgr.</label><input id="customDefault" type="number" min="1" value="200"></div>
+</div>
+</section>
+
+<section class="section">
+<h2>2. Asu konfigurācija</h2>
+<p class="hint">Katrai asij atsevišķi iestati motoru, mikrosoļus un piedziņu.</p>
+<div class="axes" id="axes"></div>
+</section>
+
+<section class="section">
+<h2>3. Rezultāti un vadības komandas</h2>
+<div class="result">
+<div class="metrics"><div class="metric"><span>X soļi/mm</span><strong id="outX">—</strong></div><div class="metric"><span>Y soļi/mm</span><strong id="outY">—</strong></div><div class="metric"><span>Z soļi/mm</span><strong id="outZ">—</strong></div><div class="metric"><span>A soļi/mm vai grādu</span><strong id="outA">—</strong></div></div>
+<div class="commands">
+<div class="cmd"><div class="cmdtop"><b>Marlin — M92</b><button id="copyMarlin">Kopēt</button></div><code id="marlin">M92 X80 Y80 Z400 A80</code><div class="hint">Lineārajām asīm komanda izmanto soļus/mm.</div></div>
+<div class="cmd"><div class="cmdtop"><b>GRBL — $100–$102</b><button id="copyGrbl">Kopēt</button></div><code id="grbl">$100=80
+$101=80
+$102=400</code><div class="hint">Standarta GRBL parasti lieto X/Y/Z asis; A ass atbalsts atkarīgs no firmware.</div></div>
+</div></div>
+</section>
+
+<section class="section">
+<h2>4. Draivera mikrosoļu un DIP slēdžu tabulas</h2>
+<div class="grid">
+<div><label for="tableDriver">Izvēlies draiveri / tabulas veidu</label><select id="tableDriver"><option value="a4988">A4988 — MS1/MS2/MS3</option><option value="drv8825">DRV8825 — MODE0/MODE1/MODE2</option><option value="tmc2209">TMC2209 — režīma atkarība</option><option value="tb6600_6">TB6600 tipa — 6 slēdžu variants</option><option value="tb6600_3">TB6600 tipa — 3 slēdžu variants</option></select></div>
+<div><label for="motorStepsRev">Motora pilnie soļi/apgr.</label><select id="motorStepsRev"><option value="200">200 — 1,8° motors</option><option value="400">400 — 0,9° motors</option></select></div>
+<div class="panel"><b id="pulseSummary">—</b><div class="hint">Impulsi vienā motora apgriezienā pie izvēlētā mikrosoļu režīma.</div></div>
+<div class="full" id="dipContent"></div>
+</div>
+<div class="row" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"><button class="primary" id="applyMicro">Lietot izvēlēto mikrosoļu režīmu visām asīm</button><span id="applyStatus" class="hint"></span></div>
+<div class="warning" style="margin-top:12px"><b>Svarīgi:</b> DIP slēdžu ON/OFF kombinācijas atšķiras starp ražotājiem un konkrētiem moduļiem. TB6600 nosaukums tirgū tiek lietots vairākām atšķirīgām platēm — salīdzini šo piemēra tabulu ar tabulu, kas uzdrukāta uz tava draivera korpusa vai tā instrukcijā. Pirms slēdžu maiņas atslēdz draivera barošanu.</div>
+</section>
+
+<section class="section">
+<h2>5. Kustības kalibrēšana</h2>
+<div class="grid">
+<div><label for="testAxis">Ass</label><select id="testAxis"><option>X</option><option>Y</option><option>Z</option><option>A</option></select></div>
+<div><label for="commanded">Komandētais attālums (mm)</label><input id="commanded" type="number" min="0.01" value="100" step="0.1"></div>
+<div><label for="actual">Faktiski izmērītais attālums (mm)</label><input id="actual" type="number" min="0.01" value="98" step="0.1"></div>
+<div class="full"><button id="calibrate" class="primary">Aprēķināt koriģēto soļu/mm</button></div>
+<div class="full result"><b id="corrected">—</b><p class="note" id="formula"></p></div>
+</div>
+</section>
+<div class="warning"><b>Par strāvas DIP slēdžiem:</b> šeit apzināti nav norādīta universāla strāvas tabula. Viena TB6600 tipa draivera ampēru kombinācijas var atšķirties no cita. Iestati strāvu pēc konkrētā draivera tabulas un motora nominālās fāzes strāvas; strāvas skalas arī var norādīt RMS vai peak vērtību.</div>
+<p class="note">Formulas: siksna — soļi/mm = pilnie soļi × mikrosoļi ÷ (siksnas solis × zobrata zobi); skrūve — soļi/mm = pilnie soļi × mikrosoļi ÷ skrūves gājiens. Rotācijas ass — soļi/grādu = pilnie soļi × mikrosoļi × motora apgriezienu skaits uz izejas apgriezienu ÷ 360.</p>
+</div></main>
+<script>
+const $=id=>document.getElementById(id), names=['X','Y','Z','A'], root=$('axes');
+function card(a){return `<div class="axis"><h3>${a} ass</h3>
+<label>Motora pilnie soļi/apgr.</label><select id="motor${a}"><option value="200">1,8° — 200</option><option value="400">0,9° — 400</option><option value="custom">Manuāli</option></select>
+<div id="cw${a}" class="hidden"><label>Cits soļu skaits/apgr.</label><input id="cs${a}" type="number" min="1" value="200"></div>
+<label>Mikrosoļi</label><select id="micro${a}">${[1,2,4,8,16,32,64,128,256].map(n=>`<option ${n===16?'selected':''}>${n}</option>`).join('')}</select>
+<label>Piedziņa</label><select id="drive${a}"><option value="belt">Siksna / zobrats</option><option value="screw">Vītņskrūve</option><option value="rotary">Rotācijas ass</option></select>
+<div id="bf${a}"><label>Siksnas solis (mm)</label><select id="pitch${a}"><option value="2">2 mm — GT2</option><option value="3">3 mm</option><option value="5">5 mm</option><option value="2.5">2,5 mm</option></select><label>Zobrata zobu skaits</label><input id="teeth${a}" type="number" min="1" value="20"></div>
+<div id="sf${a}" class="hidden"><label>Skrūves gājiens (mm/apgr.)</label><input id="lead${a}" type="number" min="0.01" step="0.01" value="8"></div>
+<div id="rf${a}" class="hidden"><label>Pārnesuma attiecība (motora apgr./izejas apgr.)</label><input id="ratio${a}" type="number" min="0.001" step="0.1" value="1"></div>
+<div class="hint" id="axisout${a}">—</div></div>`}
+root.innerHTML=names.map(card).join('');
+function motor(a){return $('motor'+a).value==='custom'?Number($('cs'+a).value):Number($('motor'+a).value)}
+function calc(a){let s=motor(a)*Number($('micro'+a).value),d=$('drive'+a).value;if(d==='belt')return s/(Number($('pitch'+a).value)*Number($('teeth'+a).value));if(d==='screw')return s/Number($('lead'+a).value);return s*Number($('ratio'+a).value)/360}
+function fmt(n){return Number.isFinite(n)?Number(n.toFixed(4)).toString():'—'}
+function update(){let v={},inch=$('units').value==='inch';names.forEach(a=>{let d=$('drive'+a).value;$('cw'+a).classList.toggle('hidden',$('motor'+a).value!=='custom');$('bf'+a).classList.toggle('hidden',d!=='belt');$('sf'+a).classList.toggle('hidden',d!=='screw');$('rf'+a).classList.toggle('hidden',d!=='rotary');v[a]=calc(a);$('out'+a).textContent=fmt(inch&&d!=='rotary'?v[a]*25.4:v[a]);$('axisout'+a).textContent=fmt(d==='rotary'?v[a]:inch?v[a]*25.4:v[a])+(d==='rotary'?' soļi/grāds':inch?' soļi/collā':' soļi/mm')});$('marlin').textContent='M92 '+names.map(a=>a+fmt(v[a])).join(' ');$('grbl').textContent=['$100='+fmt(v.X),'$101='+fmt(v.Y),'$102='+fmt(v.Z)].join('\n')}
+root.addEventListener('input',update);root.addEventListener('change',update);$('units').addEventListener('change',update);
+$('motorDefault').addEventListener('change',()=>{names.forEach(a=>{if($('motorDefault').value!=='custom')$('motor'+a).value=$('motorDefault').value;else $('motor'+a).value='custom';if($('motor'+a).value==='custom')$('cs'+a).value=$('customDefault').value});update()});
+$('customDefault').addEventListener('input',()=>{names.forEach(a=>{if($('motor'+a).value==='custom')$('cs'+a).value=$('customDefault').value});update()});
+$('microDefault').addEventListener('change',()=>{names.forEach(a=>$('micro'+a).value=$('microDefault').value);update()});
+$('driver').addEventListener('change',()=>{let m=Number($('microDefault').value),d=$('driver').value;if(d==='a4988'&&m>16)m=16;if(d==='drv8825'&&m>32)m=32;$('microDefault').value=String(m);names.forEach(a=>$('micro'+a).value=String(m));$('tableDriver').value=d==='tb6600_6'||d==='tb6600_3'?d:(d==='tmc2209'?'tmc2209':d==='drv8825'?'drv8825':'a4988');renderDip();update()});
+const a4988=[
+ ['L','L','L',1,'Pilns solis'],['H','L','L',2,'1/2 solis'],['L','H','L',4,'1/4 solis'],['H','H','L',8,'1/8 solis'],['H','H','H',16,'1/16 solis']];
+const drv8825=[
+ ['0','0','0',1,'Pilns solis'],['0','0','1',2,'1/2 solis'],['0','1','0',4,'1/4 solis'],['0','1','1',8,'1/8 solis'],['1','0','0',16,'1/16 solis'],['1','0','1',32,'1/32 solis'],['1','1','0',32,'1/32 solis'],['1','1','1',32,'1/32 solis']];
+const tb6600six=[
+ ['OFF','OFF','OFF',1,200],['ON','OFF','OFF',2,400],['OFF','ON','OFF',4,800],['ON','ON','OFF',8,1600],['OFF','OFF','ON',16,3200],['ON','OFF','ON',32,6400],['OFF','ON','ON',64,12800]];
+const tb6600three=[
+ ['ON','ON','OFF',1,200],['ON','OFF','ON',2,400],['OFF','ON','ON',2,400],['ON','OFF','OFF',4,800],['OFF','ON','OFF',8,1600],['OFF','OFF','ON',16,3200],['OFF','OFF','OFF',32,6400]];
+function table(headers,rows,stepIndex){
+ const selected=Number($('microDefault').value||16);
+ const isSelected=r=>{
+  const label=String(r[stepIndex]);
+  if(label==='Pilns solis') return selected===1;
+  const parts=label.split('/');
+  return parts.length>1 && Number(parts[parts.length-1])===selected;
+ };
+ return `<div class="table-wrap"><table><thead><tr>${headers.map(x=>`<th>${x}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr class="${isSelected(r)?'selected-row':''}">${r.map(v=>`<td>${v}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+}
+function renderDip(){
+ const d=$('tableDriver').value,steps=Number($('motorStepsRev').value);let content='';
+ if(d==='a4988'){
+ content=`<div class="note">A4988 moduļiem parasti iestata MS1, MS2, MS3 kontaktus ar džemperiem vai loģikas līmeni. H = HIGH, L = LOW.</div>
+ ${table(['MS1','MS2','MS3','Dalījums','Impulsi/apgr. pie izvēlētā motora'],a4988.map(r=>[r[0],r[1],r[2],r[3]===1?'Pilns solis':'1/'+r[3],steps*r[3]]),3)}
+ <div class="source">Avots: <a href="https://www.allegromicro.com/~/media/Files/Datasheets/A4988-Datasheet.ashx" target="_blank" rel="noopener">Allegro A4988 datu lapa</a>.</div>`;
+ }else if(d==='drv8825'){
+ content=`<div class="note">DRV8825 mikrosoļu režīmu nosaka MODE0, MODE1 un MODE2. 0 = LOW, 1 = HIGH; moduļa džemperu izkārtojums var atšķirties.</div>
+ ${table(['MODE2','MODE1','MODE0','Dalījums','Impulsi/apgr. pie izvēlētā motora'],drv8825.map(r=>[r[0],r[1],r[2],r[3]===1?'Pilns solis':'1/'+r[3],steps*r[3]]),3)}
+ <div class="source">Avots: <a href="https://www.ti.com/lit/ds/symlink/drv8825.pdf" target="_blank" rel="noopener">Texas Instruments DRV8825 datu lapa</a>.</div>`;
+ }else if(d==='tmc2209'){
+ content=`<div class="warning">TMC2209 parasti nav universālas DIP slēdžu tabulas. Mikrosoļu režīms atkarīgs no moduļa pieslēguma un konfigurācijas — piemēram, MS1/MS2 pieslēguma, CFG tapām vai UART iestatījumiem. Ievadi kalkulatorā faktiski konfigurēto mikrosoļu vērtību un pārbaudi plates shēmu.</div>
+ <div class="source">Avots: <a href="https://www.analog.com/en/products/TMC2209.html" target="_blank" rel="noopener">Analog Devices TMC2209 produkta lapa un dokumentācija</a>.</div>`;
+ }else if(d==='tb6600_6'){
+ content=`<div class="note">Piemēra tabula ārējam TB6600 tipa draiverim ar atsevišķiem SW4–SW6 mikrosoļu slēdžiem. Pārbaudi apzīmējumus uz sava draivera!</div>
+ ${table(['SW4','SW5','SW6','Dalījums','Impulsi/apgr. pie izvēlētā motora'],tb6600six.map(r=>[r[0],r[1],r[2],r[3]===1?'Pilns solis':'1/'+r[3],steps*r[3]]),3)}
+ <div class="source">Avots piemēram: <a href="https://www.phippselectronics.com/support/tb6600-stepper-motor-driver-users-guide/" target="_blank" rel="noopener">Phipps Electronics TB6600 lietotāja rokasgrāmata</a>. Šī kombinācija nav universāla visiem TB6600 kloniem.</div>`;
+ }else{
+ content=`<div class="note">Piemēra tabula dažiem TB6600 tipa moduļiem, kuros S1–S3 regulē mikrosoļus. Slēdžu kombinācijas dažādiem ražotājiem var būt citādas.</div>
+ ${table(['S1','S2','S3','Dalījums','Impulsi/apgr. pie izvēlētā motora'],tb6600three.map(r=>[r[0],r[1],r[2],r[3]===1?'Pilns solis':'1/'+r[3],steps*r[3]]),3)}
+ <div class="source">Avots piemēram: <a href="https://mtlab.pe/wp-content/uploads/TB6600-Driver-Manual.pdf" target="_blank" rel="noopener">TB6600 draivera rokasgrāmata</a>. Pārbaudi savu ierīces variantu un uz korpusa uzdrukāto tabulu.</div>`;
+ }
+ $('dipContent').innerHTML=content;
+ $('pulseSummary').textContent=`Motors: ${steps} pilnie soļi/apgr.`;
+}
+$('tableDriver').addEventListener('change',renderDip);$('motorStepsRev').addEventListener('change',renderDip);
+$('applyMicro').addEventListener('click',()=>{
+ let d=$('tableDriver').value,m=Number($('microDefault').value);
+ if(d==='a4988')m=Number(prompt('A4988 mikrosoļi: ievadi 1, 2, 4, 8 vai 16',String(m))||m);
+ else if(d==='drv8825')m=Number(prompt('DRV8825 mikrosoļi: ievadi 1, 2, 4, 8, 16 vai 32',String(m))||m);
+ else if(d==='tb6600_6'||d==='tb6600_3')m=Number(prompt('Ievadi faktiski izvēlēto mikrosoļu dalījumu (1, 2, 4, 8, 16, 32 vai 64)',String(m))||m);
+ else if(d==='tmc2209')m=Number(prompt('Ievadi TMC2209 konfigurēto mikrosoļu skaitu',String(m))||m);
+ if(![1,2,4,8,16,32,64,128,256].includes(m)){ $('applyStatus').textContent='Nepieņemta vērtība; iestatījumi nav mainīti.';return;}
+ $('microDefault').value=String(m);names.forEach(a=>$('micro'+a).value=String(m));update();$('applyStatus').textContent=`Visām asīm iestatīti ${m} mikrosoļi. Pārbaudi, vai tas sakrīt ar faktisko draivera konfigurāciju.`;
+});
+$('calibrate').addEventListener('click',()=>{let a=$('testAxis').value,c=Number($('commanded').value),r=Number($('actual').value),old=calc(a);if(c<=0||r<=0){$('corrected').textContent='Pārbaudi ievadītos datus';$('formula').textContent='Abiem attālumiem jābūt lielākiem par nulli.';return}let n=old*c/r;$('corrected').textContent=fmt(n)+' soļi/mm';$('formula').textContent=`Formula: ${fmt(old)} × ${fmt(c)} ÷ ${fmt(r)}. Korekcija paredzēta lineārai asij.`});
+async function cp(id,b){try{await navigator.clipboard.writeText($(id).textContent);b.textContent='Nokopēts';setTimeout(()=>b.textContent='Kopēt',1200)}catch(e){b.textContent='Atzīmē tekstu kopēšanai'}}$('copyMarlin').onclick=e=>cp('marlin',e.currentTarget);$('copyGrbl').onclick=e=>cp('grbl',e.currentTarget);
+update();renderDip();
+</script></body></html>
